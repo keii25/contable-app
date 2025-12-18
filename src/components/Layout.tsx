@@ -5,7 +5,7 @@ export default function Layout({ children }:{ children: React.ReactNode }){
     <div>
       <header style={{background:'#111827', color:'#fff'}}>
         <div className='container' style={{display:'flex', justifyContent:'space-between', alignItems:'center', padding:12}}>
-          <strong>IECP Corozal</strong>
+          <strong>Aplicación Contable</strong>
           <nav style={{display:'flex', gap:12}}>
             <NavLink to='/' style={{color:'#93c5fd'}}>Dashboard</NavLink>
             <NavLink to='/transacciones' style={{color:'#93c5fd'}}>Transacciones</NavLink>
