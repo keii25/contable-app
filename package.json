@@ -1,0 +1,27 @@
+{
+  "name": "iecp-contabilidad-v4.1-all-in-one-v1.6.7-rebuild",
+  "private": true,
+  "version": "1.6.7",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@reduxjs/toolkit": "^2.2.3",
+    "jspdf": "^3.0.4",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "react-redux": "^8.1.2",
+    "react-router-dom": "^6.23.0",
+    "xlsx": "^0.18.5"
+  },
+  "devDependencies": {
+    "@types/react": "^18.2.45",
+    "@types/react-dom": "^18.2.18",
+    "@vitejs/plugin-react": "^4.2.0",
+    "typescript": "^5.6.2",
+    "vite": "^7.3.0"
+  }
+}
