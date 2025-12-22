@@ -61,6 +61,19 @@ export default function TransactionForm({ open, onClose, editing = null, onSaved
     }
   }, [open, editing]);
 
+  useEffect(() => {
+    if (open && !editing) {
+      // Al abrir en modo añadir, foco en el primer campo
+      setTimeout(() => {
+        if (form.tipoMovimiento === 'CREDITO') {
+          cedulaRef.current?.focus();
+        } else {
+          cuentaRef.current?.focus();
+        }
+      }, 100);
+    }
+  }, [open, editing, form.tipoMovimiento]);
+
   const onSubmit = (e:React.FormEvent)=>{
     e.preventDefault();
     // Validaciones esenciales (sin fecha futura)

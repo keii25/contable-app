@@ -1,50 +1,59 @@
 
+import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import { AuthProvider } from './context/AuthContext';
+import ProtectedRoute from './components/ProtectedRoute';
+import Login from './pages/Login';
+import Dashboard from './routes/Dashboard';
+import Transacciones from './routes/Transacciones';
+import Reportes from './routes/Reportes';
+import AdminUsuarios from './pages/AdminUsuarios';
 import Layout from './components/Layout';
-import { Outlet } from 'react-router-dom';
-import { useEffect, useState } from 'react';
-import { useDispatch } from 'react-redux';
-import { cargarTransacciones } from './store/transactionsSlice';
-import Login from './components/Login';
 
-export default function App(){
-  const dispatch = useDispatch();
-  const [loggedIn, setLoggedIn] = useState(false);
-  const [role, setRole] = useState<'admin' | 'user' | null>(null);
-
-  useEffect(() => {
-    const saved = localStorage.getItem('loggedIn');
-    const savedRole = localStorage.getItem('role');
-    if (saved === 'true' && savedRole) {
-      setLoggedIn(true);
-      setRole(savedRole as 'admin' | 'user');
-    }
-  }, []);
-
-  useEffect(()=>{ if (loggedIn) (dispatch as any)(cargarTransacciones(role === 'admin' ? 'iecp_transacciones_admin' : 'iecp_transacciones_user1')); },[dispatch, loggedIn, role]);
-
-  const handleLogin = (userRole: 'admin' | 'user') => {
-    setLoggedIn(true);
-    setRole(userRole);
-    localStorage.setItem('loggedIn', 'true');
-    localStorage.setItem('role', userRole);
-  };
-
-  const handleLogout = () => {
-    setLoggedIn(false);
-    setRole(null);
-    localStorage.removeItem('loggedIn');
-    localStorage.removeItem('role');
-  };
-
-  if (!loggedIn) {
-    return <Login onLogin={handleLogin} />;
-  }
-
+function App() {
   return (
-    <Layout onLogout={handleLogout} role={role}>
-      <div className='container'>
-        <Outlet />
-      </div>
-    </Layout>
+    <AuthProvider>
+      <Router>
+        <Routes>
+          <Route path="/login" element={<Login />} />
+          <Route path="/" element={
+            <ProtectedRoute>
+              <Layout>
+                <Dashboard />
+              </Layout>
+            </ProtectedRoute>
+          } />
+          <Route path="/dashboard" element={
+            <ProtectedRoute>
+              <Layout>
+                <Dashboard />
+              </Layout>
+            </ProtectedRoute>
+          } />
+          <Route path="/transacciones" element={
+            <ProtectedRoute>
+              <Layout>
+                <Transacciones />
+              </Layout>
+            </ProtectedRoute>
+          } />
+          <Route path="/reportes" element={
+            <ProtectedRoute>
+              <Layout>
+                <Reportes />
+              </Layout>
+            </ProtectedRoute>
+          } />
+          <Route path="/admin-usuarios" element={
+            <ProtectedRoute requiredRole="admin">
+              <Layout>
+                <AdminUsuarios />
+              </Layout>
+            </ProtectedRoute>
+          } />
+        </Routes>
+      </Router>
+    </AuthProvider>
   );
 }
+
+export default App;
