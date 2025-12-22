@@ -1,8 +1,8 @@
 
-import { useDispatch } from 'react-redux';
+import { useDispatch, useSelector } from 'react-redux';
 import { agregar, editar } from '../store/transactionsSlice';
 import type { Transaccion } from '../types';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, useRef } from 'react';
 
 const opcionesIngresosUI = [
   { label: 'Seleccione', value: '' },
@@ -30,6 +30,7 @@ type FormData = {
 
 export default function TransactionForm({ open, onClose, editing = null, onSaved }: Props){
   const dispatch = useDispatch();
+  const nombresPorCedula = useSelector((state: any) => state.transactions.nombresPorCedula);
 
   // "hoy" calculado en formato YYYY-MM-DD para atributos HTML y validación
   const hoy = useMemo(()=> new Date().toISOString().slice(0,10), []);
@@ -38,6 +39,9 @@ export default function TransactionForm({ open, onClose, editing = null, onSaved
     fecha: '', tipoMovimiento:'CREDITO', cedula:'', nombresApellidos:'', cuentaContable:'', valor:0, descripcion:''
   });
   const [valorStr, setValorStr] = useState('');
+
+  const cedulaRef = useRef<HTMLInputElement>(null);
+  const cuentaRef = useRef<HTMLSelectElement>(null);
 
   useEffect(()=>{
     if(open){
@@ -51,7 +55,7 @@ export default function TransactionForm({ open, onClose, editing = null, onSaved
         setValorStr((f.valor||0).toLocaleString('es-CO'));
       } else {
         // Modo Añadir → formulario completamente limpio
-        setForm({ fecha:'', tipoMovimiento:'CREDITO', cedula:'', nombresApellidos:'', cuentaContable:'', valor:0, descripcion:'' });
+        setForm({ fecha: hoy, tipoMovimiento:'CREDITO', cedula:'', nombresApellidos:'', cuentaContable:'', valor:0, descripcion:'' });
         setValorStr('');
       }
     }
@@ -76,10 +80,44 @@ export default function TransactionForm({ open, onClose, editing = null, onSaved
       nombresApellidos: form.tipoMovimiento==='CREDITO' ? (form.nombresApellidos||'') : undefined
     } as any;
 
-    if(editing){ (dispatch as any)(editar({ ...(editing as any), ...payloadBase })); }
-    else { (dispatch as any)(agregar(payloadBase)); }
-
-    onClose(); onSaved();
+    if(editing){
+      (dispatch as any)(editar({ ...(editing as any), ...payloadBase }));
+      onClose(); onSaved();
+    } else {
+      (dispatch as any)(agregar(payloadBase));
+      // Si estamos agregando y es un Ingreso (CREDITO), mantener el diálogo abierto
+      // y limpiar solo los campos: cedula, nombresApellidos, descripcion y valor.
+      if (payloadBase.tipoMovimiento === 'CREDITO'){
+        setForm({
+          // conservar fecha y cuentaContable
+          fecha: form.fecha,
+          tipoMovimiento: 'CREDITO',
+          cedula: '',
+          nombresApellidos: '',
+          cuentaContable: form.cuentaContable,
+          valor: 0,
+          descripcion: ''
+        });
+        setValorStr('');
+        onSaved();
+        cedulaRef.current?.focus();
+      } else if (payloadBase.tipoMovimiento === 'DEBITO'){
+        // Para Egresos, mantener abierto y limpiar cuentaContable, valor, descripcion; conservar fecha
+        setForm({
+          fecha: form.fecha,
+          tipoMovimiento: 'DEBITO',
+          cuentaContable: '',
+          valor: 0,
+          descripcion: ''
+        });
+        setValorStr('');
+        onSaved();
+        cuentaRef.current?.focus();
+      } else {
+        // Para otros tipos, cerrar como antes
+        onClose(); onSaved();
+      }
+    }
   };
 
   if(!open) return null;
@@ -93,18 +131,19 @@ export default function TransactionForm({ open, onClose, editing = null, onSaved
 
   const handleCedulaChange = (e:React.ChangeEvent<HTMLInputElement>)=>{
     const digits = e.target.value.replace(/[^0-9]/g,'');
-    setForm({ ...form, cedula: digits });
+    const nombre = nombresPorCedula[digits] || '';
+    setForm({ ...form, cedula: digits, nombresApellidos: nombre });
   };
 
   const isCredito = form.tipoMovimiento==='CREDITO';
 
-  // Cambiar tipo (Ingresos ↔ Egresos) y LIMPIAR todo
+  // Cambiar tipo (Ingresos ↔ Egresos) y LIMPIAR todo excepto fecha
   const switchToCredito = ()=>{
-    setForm({ fecha:'', tipoMovimiento:'CREDITO', cedula:'', nombresApellidos:'', cuentaContable:'', valor:0, descripcion:'' });
+    setForm({ fecha: form.fecha, tipoMovimiento:'CREDITO', cedula:'', nombresApellidos:'', cuentaContable:'', valor:0, descripcion:'' });
     setValorStr('');
   };
   const switchToDebito = ()=>{
-    setForm({ fecha:'', tipoMovimiento:'DEBITO', cuentaContable:'', valor:0, descripcion:'' });
+    setForm({ fecha: form.fecha, tipoMovimiento:'DEBITO', cuentaContable:'', valor:0, descripcion:'' });
     setValorStr('');
   };
 
@@ -113,7 +152,7 @@ export default function TransactionForm({ open, onClose, editing = null, onSaved
   return (
     <div className="modal-backdrop"><div className="modal">
       <h2 className="hdr">{editing? 'Editar Transacción' : 'Nueva Transacción'}</h2>
-      <p className="sub">La fecha no puede ser futura. El formulario se limpia al Añadir y al cambiar entre Ingresos/Egresos.</p>
+      <p className="sub">La fecha no puede ser futura. El formulario se limpia al Añadir y al cambiar entre Ingresos/Egresos (excepto fecha).</p>
       <form onSubmit={onSubmit} className="grid grid-2">
         {/* Fecha — con atributo max=hoy para bloquear días futuros desde el selector */}
         <div>
@@ -148,7 +187,7 @@ export default function TransactionForm({ open, onClose, editing = null, onSaved
         {isCredito && (
           <div>
             <label className="hdr" style={{fontSize:13}}>Cedula</label>
-            <input type="text" className="input" placeholder="Solo números" inputMode="numeric" value={form.cedula||''} onChange={handleCedulaChange}/>
+            <input ref={cedulaRef} type="text" className="input" placeholder="Solo números" inputMode="numeric" value={form.cedula||''} onChange={handleCedulaChange}/>
           </div>
         )}
         {isCredito && (
@@ -161,7 +200,7 @@ export default function TransactionForm({ open, onClose, editing = null, onSaved
         {/* Cuenta Contable */}
         <div>
           <label className="hdr" style={{fontSize:13}}>Cuenta Contable</label>
-          <select className="select" value={form.cuentaContable} onChange={e=>setForm({...form, cuentaContable: e.target.value})}>
+          <select ref={cuentaRef} className="select" value={form.cuentaContable} onChange={e=>setForm({...form, cuentaContable: e.target.value})}>
             {opciones.map(o=> <option key={o.value} value={o.value}>{o.label}</option>)}
           </select>
         </div>

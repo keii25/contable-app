@@ -1,11 +1,14 @@
 
 const LS_KEY = 'iecp_transacciones_v1';
-export async function loadInicial(): Promise<any[]> {
-  const raw = localStorage.getItem(LS_KEY);
+export async function loadInicial(key: string = LS_KEY): Promise<any[]> {
+  const raw = localStorage.getItem(key);
   if (raw) return JSON.parse(raw);
-  const res = await fetch('/seed-transacciones.json');
-  const data = await res.json();
-  localStorage.setItem(LS_KEY, JSON.stringify(data));
-  return data;
+  if (key === LS_KEY) {
+    const res = await fetch('/seed-transacciones.json');
+    const data = await res.json();
+    localStorage.setItem(key, JSON.stringify(data));
+    return data;
+  }
+  return [];
 }
-export function saveTransacciones(transacciones: any[]) { localStorage.setItem(LS_KEY, JSON.stringify(transacciones)); }
+export function saveTransacciones(transacciones: any[], key: string = LS_KEY) { localStorage.setItem(key, JSON.stringify(transacciones)); }

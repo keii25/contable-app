@@ -4,6 +4,21 @@ import jsPDF from 'jspdf';
 function fnv1aHex(str: string){ let h=0x811c9dc5; for(let i=0;i<str.length;i++){ h ^= str.charCodeAt(i); h += (h << 1) + (h << 4) + (h << 7) + (h << 8) + (h << 24); } return (h>>>0).toString(16).padStart(8,'0'); }
 export function generarCodigoCURDeterministico(payload:{ anio:string; mesIndex:number; items:{id:string}[]; ingresos:number; egresos:number; }): string { const ids = payload.items.map(i=>i.id).sort(); const base = JSON.stringify({ a: payload.anio, m: payload.mesIndex, n: payload.items.length, ingresos: payload.ingresos, egresos: payload.egresos, ids }); const hex = fnv1aHex(base).slice(0,6).toUpperCase(); return `CUR-IGLC-${hex}`; }
 
+export function isValidPdfFileName(name: string){
+  // Formato esperado: IECP_Reporte_DD-MM-YYYY_HH-MM-SS.pdf
+  const re = /^IECP_Reporte_\d{2}-\d{2}-\d{4}_\d{2}-\d{2}-\d{2}\.pdf$/;
+  return re.test(name);
+}
+
+export function sanitizePdfFileName(name: string){
+  // Reemplaza caracteres no permitidos por guión y asegura extensión .pdf
+  const maxLen = 200;
+  let base = name.replace(/[^a-zA-Z0-9._\-()\s]/g, '-');
+  if (!base.toLowerCase().endsWith('.pdf')) base = base + '.pdf';
+  if (base.length > maxLen) base = base.slice(0, maxLen - 4) + '.pdf';
+  return base;
+}
+
 export function exportarPDFSimpleConEncabezado({ titulo, periodoLabel, ingresos, egresos, generadoEl, cur }:{ titulo:string; periodoLabel:string; ingresos:number; egresos:number; generadoEl:string; cur:string; }){
   const doc = new jsPDF({ unit:'pt', format:'a4' });
   const pageWidth = doc.internal.pageSize.getWidth();
@@ -48,5 +63,11 @@ export function exportarPDFSimpleConEncabezado({ titulo, periodoLabel, ingresos,
   const fechaStr = now.toLocaleDateString('es-CO', { day:'2-digit', month:'2-digit', year:'numeric' }).replace(/\//g, '-');
   const horaStr  = now.toLocaleTimeString('es-CO', { hour12:false }).replace(/:/g, '-');
   const fileName = `IECP_Reporte_${fechaStr}_${horaStr}.pdf`;
-  doc.save(fileName);
+  if (!isValidPdfFileName(fileName)){
+    const safe = sanitizePdfFileName(fileName);
+    console.warn(`[pdf] Nombre de archivo inválido: ${fileName} -> usando: ${safe}`);
+    doc.save(safe);
+  } else {
+    doc.save(fileName);
+  }
 }
