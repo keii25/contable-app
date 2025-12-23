@@ -105,7 +105,10 @@ export const transactionService = {
         amount: transaction.valor ?? transaction.monto ?? transaction.amount,
         description: transaction.descripcion ?? transaction.description,
         date: transaction.fecha ?? transaction.date,
-        category: transaction.cuentaContable ?? transaction.cuenta ?? transaction.category
+        category: transaction.cuentaContable ?? transaction.cuenta ?? transaction.category,
+        // Optional fields for person data
+        cedula: transaction.cedula ?? undefined,
+        nombres_apellidos: transaction.nombresApellidos ?? transaction.nombres_apellidos ?? undefined
       };
       console.log('📤 Sending to Supabase:', transactionData);
 
@@ -114,9 +117,31 @@ export const transactionService = {
         .insert([transactionData])
         .select()
         .single();
-
       if (error) {
-        console.error('❌ Error adding transaction:', error);
+        console.error('❌ Error adding transaction (first attempt):', error);
+        // If the error mentions missing columns (e.g., cedula, nombres_apellidos), retry without them
+        const msg = String(error?.message || error?.details || '').toLowerCase();
+        if (msg.includes('column "cedula"') || msg.includes('column "nombres_apellidos"') || msg.includes('column cedula') || msg.includes('column nombres_apellidos')) {
+          console.log('ℹ️ Retrying insert without person fields due to missing columns');
+          const { data: data2, error: error2 } = await supabase
+            .from('transactions')
+            .insert([{
+              user_id: transactionData.user_id,
+              type: transactionData.type,
+              amount: transactionData.amount,
+              description: transactionData.description,
+              date: transactionData.date,
+              category: transactionData.category
+            }])
+            .select()
+            .single();
+          if (error2) {
+            console.error('❌ Retry insert failed:', error2);
+            throw error2;
+          }
+          console.log('✅ Transaction added successfully (without person fields):', data2);
+          return data2;
+        }
         throw error;
       }
       console.log('✅ Transaction added successfully:', data);
@@ -144,6 +169,8 @@ export const transactionService = {
       if (updates.date !== undefined) updateData.date = updates.date;
       if (updates.cuentaContable !== undefined) updateData.category = updates.cuentaContable;
       if (updates.cuenta !== undefined) updateData.category = updates.cuenta;
+      if (updates.cedula !== undefined) updateData.cedula = updates.cedula;
+      if (updates.nombresApellidos !== undefined) updateData.nombres_apellidos = updates.nombresApellidos;
       if (updates.tipoMovimiento !== undefined) {
         updateData.type = updates.tipoMovimiento === 'CREDITO' ? 'ingreso' : 'egreso';
       }
@@ -154,9 +181,26 @@ export const transactionService = {
         .eq('id', id)
         .select()
         .single();
-
       if (error) {
-        console.error('Error updating transaction:', error);
+        console.error('Error updating transaction (first attempt):', error);
+        const msg = String(error?.message || error?.details || '').toLowerCase();
+        if (msg.includes('column "cedula"') || msg.includes('column "nombres_apellidos"') || msg.includes('column cedula') || msg.includes('column nombres_apellidos')) {
+          console.log('ℹ️ Retrying update without person fields due to missing columns');
+          // remove person fields and retry
+          delete updateData.cedula;
+          delete updateData.nombres_apellidos;
+          const { data: data2, error: error2 } = await supabase
+            .from('transactions')
+            .update(updateData)
+            .eq('id', id)
+            .select()
+            .single();
+          if (error2) {
+            console.error('❌ Retry update failed:', error2);
+            throw error2;
+          }
+          return data2;
+        }
         throw error;
       }
       return data;

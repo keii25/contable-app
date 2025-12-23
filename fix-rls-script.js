@@ -15,11 +15,13 @@ envContent.split('\n').forEach(line => {
   }
 });
 
-const supabaseUrl = envVars.VITE_SUPABASE_URL;
-const supabaseAnonKey = envVars.VITE_SUPABASE_ANON_KEY;
+const supabaseUrl = envVars.VITE_SUPABASE_URL || process.env.VITE_SUPABASE_URL;
+const supabaseAnonKey = envVars.VITE_SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY;
+const serviceRoleKey = envVars.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-const supabase = supabaseUrl && supabaseAnonKey
-  ? createClient(supabaseUrl, supabaseAnonKey)
+// Prefer service role key for executing admin SQL; fall back to anon (may not have permission)
+const supabase = supabaseUrl && (serviceRoleKey || supabaseAnonKey)
+  ? createClient(supabaseUrl, serviceRoleKey || supabaseAnonKey)
   : null;
 
 async function fixRLS() {
@@ -37,19 +39,35 @@ async function fixRLS() {
 
     console.log('📄 SQL to execute:', sqlContent);
 
-    // Execute the SQL using Supabase's rpc function
-    // Note: This requires the pg_execute_sql function to be available
-    const { data, error } = await supabase.rpc('exec_sql', {
-      sql: sqlContent
-    });
-
-    if (error) {
-      console.error('❌ Error executing SQL:', error);
-      console.log('💡 You may need to run this SQL manually in the Supabase dashboard');
-      console.log('📋 SQL to run manually:');
-      console.log(sqlContent);
+    // Try to execute the SQL using an RPC if available
+    if (serviceRoleKey) {
+      console.log('🔐 Using service role key to execute SQL');
+      try {
+        // Some setups provide an RPC to execute raw SQL; try common names
+        const rpcNames = ['exec_sql', 'run_sql', 'pg_exec'];
+        let executed = false;
+        for (const name of rpcNames) {
+          const { data, error } = await supabase.rpc(name, { sql: sqlContent });
+          if (!error) {
+            console.log('✅ Executed SQL via rpc:', name);
+            executed = true;
+            break;
+          }
+          console.log('ℹ️ RPC', name, 'not available or failed:', error?.message || error);
+        }
+        if (!executed) {
+          console.log('⚠️ No suitable RPC found. You may need to run the SQL manually in the Supabase SQL editor.');
+          console.log(sqlContent);
+        }
+      } catch (e) {
+        console.error('❌ Error executing SQL with service role key:', e);
+        console.log('💡 Please run the following SQL manually in Supabase SQL editor:');
+        console.log(sqlContent);
+      }
     } else {
-      console.log('✅ RLS policies fixed successfully');
+      console.log('⚠️ Service role key not present. Cannot execute admin SQL programmatically with anon key.');
+      console.log('💡 Please run the following SQL manually in the Supabase SQL editor:');
+      console.log(sqlContent);
     }
 
   } catch (error) {

@@ -69,6 +69,7 @@ const AdminUsuarios = () => {
           onChange={(e) => setNewUser({ ...newUser, password: e.target.value })}
           className="border p-2 mr-2"
         />
+        
         <select
           value={newUser.role}
           onChange={(e) => setNewUser({ ...newUser, role: e.target.value })}

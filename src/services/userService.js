@@ -37,7 +37,7 @@ const localStorageService = {
     const newUser = {
       ...user,
       id: Date.now().toString(),
-      password: user.password, // Sin hash adicional
+      password: user.password // Sin hash adicional
     };
     users.push(newUser);
     localStorage.setItem(STORAGE_KEY, JSON.stringify(users));
@@ -203,8 +203,8 @@ export const userService = {
       console.log('✅ Authentication successful for user:', data.username);
       return data;
     } catch (error) {
-      console.error('💥 Supabase connection error, falling back to localStorage:', error);
-      return localStorageService.authenticateUser(username, password);
+      console.error('Login error:', error);
+      return null;
     }
   },
 
