@@ -1,7 +1,7 @@
 
 import { createAsyncThunk, createSlice, PayloadAction } from '@reduxjs/toolkit';
 import type { Transaccion } from '../types';
-import { loadInicial, saveTransacciones } from '../lib/persist';
+import { transactionService } from '../services/transactionService';
 
 const initialState: { items: Transaccion[]; cuentas: string[]; centros: string[]; nombresPorCedula: Record<string, string>; key: string; status: 'idle'|'loading'|'succeeded'|'failed' } = {
   items: [],
@@ -12,13 +12,105 @@ const initialState: { items: Transaccion[]; cuentas: string[]; centros: string[]
   status: 'idle'
 };
 
-export const cargarTransacciones = createAsyncThunk('transactions/load', async (key?: string) => await loadInicial(key));
+export const cargarTransacciones = createAsyncThunk('transactions/load', async (userId: string) => {
+  console.log('📥 Loading transactions for userId:', userId, 'type:', typeof userId);
+  const transactions = await transactionService.getTransactions(userId);
+  console.log('📊 Raw transactions from service:', transactions);
+  // Convertir formato de Supabase al formato local
+  const converted = transactions.map(t => ({
+    id: t.id,
+    tipoMovimiento: t.type === 'ingreso' ? 'CREDITO' : 'DEBITO',
+    monto: t.amount,
+    descripcion: t.description,
+    fecha: t.date,
+    cuenta: t.category,
+    centroCosto: 'Sede Corozal', // Valor por defecto
+    cedula: '1010', // Valor por defecto para ingresos
+    nombresApellidos: ''
+  }));
+  console.log('🔄 Converted transactions:', converted);
+  return converted;
+});
 
-const slice = createSlice({ name:'transactions', initialState, reducers: {
-  agregar(state, action: PayloadAction<Omit<Transaccion,'id'>>){ const nuevo = { ...action.payload, id: crypto.randomUUID() } as Transaccion; if (!('centroCosto' in nuevo)) nuevo.centroCosto = 'Sede Corozal'; if (nuevo.tipoMovimiento === 'DEBITO') { delete nuevo.cedula; delete nuevo.nombresApellidos; } else { if (!nuevo.cedula || !String(nuevo.cedula).trim()) nuevo.cedula = '1010'; if (nuevo.cedula && nuevo.nombresApellidos) state.nombresPorCedula[nuevo.cedula] = nuevo.nombresApellidos; } state.items.push(nuevo); saveTransacciones(state.items, state.key); },
-  editar(state, action: PayloadAction<Transaccion>){ const upd = { ...action.payload } as Transaccion; if (upd.tipoMovimiento === 'DEBITO') { delete upd.cedula; delete upd.nombresApellidos; } else { if (upd.cedula && upd.nombresApellidos) state.nombresPorCedula[upd.cedula] = upd.nombresApellidos; } state.items = state.items.map(t=> t.id===upd.id? upd : t); saveTransacciones(state.items, state.key); },
-  eliminar(state, action: PayloadAction<string>){ state.items = state.items.filter(t=> t.id!==action.payload); saveTransacciones(state.items, state.key); },
-}, extraReducers: b=>{ b.addCase(cargarTransacciones.pending, s=>{ s.status='loading'; }) .addCase(cargarTransacciones.fulfilled, (s,a)=>{ s.items = a.payload as Transaccion[]; s.key = a.meta.arg || 'iecp_transacciones_v1'; s.nombresPorCedula = {}; s.items.forEach(t => { if (t.cedula && t.nombresApellidos) s.nombresPorCedula[t.cedula] = t.nombresApellidos; }); s.status='succeeded'; }) .addCase(cargarTransacciones.rejected, s=>{ s.status='failed'; }); } });
+export const agregarTransaccion = createAsyncThunk('transactions/add', async ({ transaction, userId }: { transaction: Omit<Transaccion,'id'>; userId: string }) => {
+  const result = await transactionService.addTransaction(transaction, userId);
+  return {
+    ...transaction,
+    id: result.id
+  };
+});
 
-export const { agregar, editar, eliminar } = slice.actions;
+export const actualizarTransaccion = createAsyncThunk('transactions/update', async ({ id, updates }: { id: string; updates: Partial<Transaccion> }) => {
+  await transactionService.updateTransaction(id, updates);
+  return { id, updates };
+});
+
+export const eliminarTransaccion = createAsyncThunk('transactions/delete', async (id: string) => {
+  await transactionService.deleteTransaction(id);
+  return id;
+});
+
+const slice = createSlice({
+  name:'transactions',
+  initialState,
+  reducers: {
+    // Mantener reducers locales para operaciones inmediatas si es necesario
+  },
+  extraReducers: (builder) => {
+    builder
+      .addCase(cargarTransacciones.pending, (state) => {
+        state.status = 'loading';
+      })
+      .addCase(cargarTransacciones.fulfilled, (state, action) => {
+        console.log('✅ cargarTransacciones.fulfilled - payload:', action.payload);
+        state.items = action.payload as Transaccion[];
+        state.nombresPorCedula = {};
+        state.items.forEach(t => {
+          if (t.cedula && t.nombresApellidos) {
+            state.nombresPorCedula[t.cedula] = t.nombresApellidos;
+          }
+        });
+        state.status = 'succeeded';
+        console.log('✅ State updated - items:', state.items.length, 'status:', state.status);
+      })
+      .addCase(cargarTransacciones.rejected, (state) => {
+        console.error('❌ cargarTransacciones.rejected');
+        state.status = 'failed';
+      })
+      .addCase(agregarTransaccion.fulfilled, (state, action) => {
+        const nuevo = action.payload;
+        if (!('centroCosto' in nuevo)) nuevo.centroCosto = 'Sede Corozal';
+        if (nuevo.tipoMovimiento === 'DEBITO') {
+          delete nuevo.cedula;
+          delete nuevo.nombresApellidos;
+        } else {
+          if (!nuevo.cedula || !String(nuevo.cedula).trim()) nuevo.cedula = '1010';
+          if (nuevo.cedula && nuevo.nombresApellidos) {
+            state.nombresPorCedula[nuevo.cedula] = nuevo.nombresApellidos;
+          }
+        }
+        state.items.push(nuevo as Transaccion);
+      })
+      .addCase(actualizarTransaccion.fulfilled, (state, action) => {
+        const { id, updates } = action.payload;
+        const index = state.items.findIndex(t => t.id === id);
+        if (index !== -1) {
+          const upd = { ...state.items[index], ...updates } as Transaccion;
+          if (upd.tipoMovimiento === 'DEBITO') {
+            delete upd.cedula;
+            delete upd.nombresApellidos;
+          } else {
+            if (upd.cedula && upd.nombresApellidos) {
+              state.nombresPorCedula[upd.cedula] = upd.nombresApellidos;
+            }
+          }
+          state.items[index] = upd;
+        }
+      })
+      .addCase(eliminarTransaccion.fulfilled, (state, action) => {
+        state.items = state.items.filter(t => t.id !== action.payload);
+      });
+  }
+});
+
 export default slice.reducer;

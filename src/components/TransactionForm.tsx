@@ -1,8 +1,9 @@
 
 import { useDispatch, useSelector } from 'react-redux';
-import { agregar, editar } from '../store/transactionsSlice';
+import { agregarTransaccion, actualizarTransaccion } from '../store/transactionsSlice';
 import type { Transaccion } from '../types';
 import { useEffect, useMemo, useState, useRef } from 'react';
+import { useAuth } from '../context/AuthContext';
 
 const opcionesIngresosUI = [
   { label: 'Seleccione', value: '' },
@@ -29,8 +30,7 @@ type FormData = {
 };
 
 export default function TransactionForm({ open, onClose, editing = null, onSaved }: Props){
-  const dispatch = useDispatch();
-  const nombresPorCedula = useSelector((state: any) => state.transactions.nombresPorCedula);
+  const dispatch = useDispatch();  const { user } = useAuth();  const nombresPorCedula = useSelector((state: any) => state.transactions.nombresPorCedula);
 
   // "hoy" calculado en formato YYYY-MM-DD para atributos HTML y validación
   const hoy = useMemo(()=> new Date().toISOString().slice(0,10), []);
@@ -74,7 +74,7 @@ export default function TransactionForm({ open, onClose, editing = null, onSaved
     }
   }, [open, editing, form.tipoMovimiento]);
 
-  const onSubmit = (e:React.FormEvent)=>{
+  const onSubmit = async (e:React.FormEvent)=>{
     e.preventDefault();
     // Validaciones esenciales (sin fecha futura)
     if(!/^\d{4}-\d{2}-\d{2}$/.test(form.fecha)) return alert('Fecha inválida (formato YYYY-MM-DD)');
@@ -93,43 +93,51 @@ export default function TransactionForm({ open, onClose, editing = null, onSaved
       nombresApellidos: form.tipoMovimiento==='CREDITO' ? (form.nombresApellidos||'') : undefined
     } as any;
 
-    if(editing){
-      (dispatch as any)(editar({ ...(editing as any), ...payloadBase }));
-      onClose(); onSaved();
-    } else {
-      (dispatch as any)(agregar(payloadBase));
-      // Si estamos agregando y es un Ingreso (CREDITO), mantener el diálogo abierto
-      // y limpiar solo los campos: cedula, nombresApellidos, descripcion y valor.
-      if (payloadBase.tipoMovimiento === 'CREDITO'){
-        setForm({
-          // conservar fecha y cuentaContable
-          fecha: form.fecha,
-          tipoMovimiento: 'CREDITO',
-          cedula: '',
-          nombresApellidos: '',
-          cuentaContable: form.cuentaContable,
-          valor: 0,
-          descripcion: ''
-        });
-        setValorStr('');
-        onSaved();
-        cedulaRef.current?.focus();
-      } else if (payloadBase.tipoMovimiento === 'DEBITO'){
-        // Para Egresos, mantener abierto y limpiar cuentaContable, valor, descripcion; conservar fecha
-        setForm({
-          fecha: form.fecha,
-          tipoMovimiento: 'DEBITO',
-          cuentaContable: '',
-          valor: 0,
-          descripcion: ''
-        });
-        setValorStr('');
-        onSaved();
-        cuentaRef.current?.focus();
-      } else {
-        // Para otros tipos, cerrar como antes
+    try {
+      if(editing){
+        (dispatch as any)(actualizarTransaccion({ id: editing.id, updates: payloadBase }));
         onClose(); onSaved();
+      } else {
+        if (user?.id) {
+          console.log('💾 TransactionForm - Adding transaction for user:', user, 'userId:', user.id);
+          (dispatch as any)(agregarTransaccion({ transaction: payloadBase, userId: user.id }));
+          // Si estamos agregando y es un Ingreso (CREDITO), mantener el diálogo abierto
+          // y limpiar solo los campos: cedula, nombresApellidos, descripcion y valor.
+          if (payloadBase.tipoMovimiento === 'CREDITO'){
+            setForm({
+              // conservar fecha y cuentaContable
+              fecha: form.fecha,
+              tipoMovimiento: 'CREDITO',
+              cedula: '',
+              nombresApellidos: '',
+              cuentaContable: form.cuentaContable,
+              valor: 0,
+              descripcion: ''
+            });
+            setValorStr('');
+            onSaved();
+            cedulaRef.current?.focus();
+          } else if (payloadBase.tipoMovimiento === 'DEBITO'){
+            // Para Egresos, mantener abierto y limpiar cuentaContable, valor, descripcion; conservar fecha
+            setForm({
+              fecha: form.fecha,
+              tipoMovimiento: 'DEBITO',
+              cuentaContable: '',
+              valor: 0,
+              descripcion: ''
+            });
+            setValorStr('');
+            onSaved();
+            cuentaRef.current?.focus();
+          } else {
+            // Para otros tipos, cerrar como antes
+            onClose(); onSaved();
+          }
+        }
       }
+    } catch (error) {
+      console.error('Error saving transaction:', error);
+      alert('Error al guardar la transacción');
     }
   };
 

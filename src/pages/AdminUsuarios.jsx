@@ -4,22 +4,50 @@ import { userService } from '../services/userService';
 const AdminUsuarios = () => {
   const [users, setUsers] = useState([]);
   const [newUser, setNewUser] = useState({ username: '', password: '', role: 'lector' });
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    setUsers(userService.getUsers());
+    loadUsers();
   }, []);
 
-  const handleAddUser = () => {
-    if (newUser.username && newUser.password) {
-      userService.addUser(newUser);
-      setUsers(userService.getUsers());
-      setNewUser({ username: '', password: '', role: 'lector' });
+  const loadUsers = async () => {
+    try {
+      const userList = await userService.getUsers();
+      setUsers(userList);
+    } catch (error) {
+      console.error('Error loading users:', error);
     }
   };
 
-  const handleDelete = (id) => {
-    userService.deleteUser(id);
-    setUsers(userService.getUsers());
+  const handleAddUser = async () => {
+    if (newUser.username && newUser.password) {
+      setLoading(true);
+      try {
+        await userService.addUser(newUser);
+        setUsers(await userService.getUsers());
+        setNewUser({ username: '', password: '', role: 'lector' });
+      } catch (error) {
+        console.error('Error adding user:', error);
+        alert('Error al agregar usuario');
+      } finally {
+        setLoading(false);
+      }
+    }
+  };
+
+  const handleDelete = async (id) => {
+    if (window.confirm('¿Estás seguro de que quieres eliminar este usuario?')) {
+      setLoading(true);
+      try {
+        await userService.deleteUser(id);
+        setUsers(await userService.getUsers());
+      } catch (error) {
+        console.error('Error deleting user:', error);
+        alert('Error al eliminar usuario');
+      } finally {
+        setLoading(false);
+      }
+    }
   };
 
   return (
@@ -50,7 +78,9 @@ const AdminUsuarios = () => {
           <option value="editor">Editor</option>
           <option value="admin">Admin</option>
         </select>
-        <button onClick={handleAddUser} className="bg-blue-500 text-white p-2">Agregar</button>
+        <button onClick={handleAddUser} className="bg-blue-500 text-white p-2" disabled={loading}>
+          {loading ? 'Agregando...' : 'Agregar'}
+        </button>
       </div>
       <div>
         <h2 className="text-xl mb-4">Lista de Usuarios</h2>
