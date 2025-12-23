@@ -79,7 +79,7 @@ export default function TransactionsTable(){
   const IngresosTable = ({data}:{data:Transaccion[]}) => (
     <div className="card" style={{marginTop:10}}>
       <div className="hdr">Ingresos</div>
-      <div style={{overflowX:'auto'}}>
+      <div className="table-responsive">
         <table className="table">
           <thead>
             <tr>
@@ -112,7 +112,7 @@ export default function TransactionsTable(){
   const EgresosTable = ({data}:{data:Transaccion[]}) => (
     <div className="card" style={{marginTop:10}}>
       <div className="hdr">Egresos</div>
-      <div style={{overflowX:'auto'}}>
+      <div className="table-responsive">
         <table className="table">
           <thead>
             <tr>

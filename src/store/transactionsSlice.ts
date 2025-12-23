@@ -17,17 +17,17 @@ export const cargarTransacciones = createAsyncThunk('transactions/load', async (
   const transactions = await transactionService.getTransactions(userId);
   console.log('📊 Raw transactions from service:', transactions);
   // Convertir formato de Supabase al formato local
-  const converted = transactions.map(t => ({
-    id: t.id,
-    tipoMovimiento: t.type === 'ingreso' ? 'CREDITO' : 'DEBITO',
-    monto: t.amount,
-    descripcion: t.description,
-    fecha: t.date,
-    cuenta: t.category,
-    centroCosto: 'Sede Corozal', // Valor por defecto
-    cedula: '1010', // Valor por defecto para ingresos
-    nombresApellidos: ''
-  }));
+  const converted = (transactions || []).map((t: any) => ({
+    id: String(t.id),
+    tipoMovimiento: (t.type === 'ingreso' || t.type === 'ingreso') ? 'CREDITO' : 'DEBITO',
+    valor: Number(t.amount ?? t.monto ?? t.valor) || 0,
+    descripcion: t.description ?? t.descripcion ?? '',
+    fecha: t.date ?? t.fecha ?? (t.created_at ? String(t.created_at).slice(0,10) : ''),
+    cuentaContable: t.category ?? t.cuenta ?? t.cuentaContable ?? 'Sin cuenta',
+    centroCosto: t.centroCosto ?? 'Sede Corozal', // Valor por defecto
+    cedula: t.cedula ?? undefined,
+    nombresApellidos: t.nombresApellidos ?? t.nombres_apellidos ?? ''
+  } as unknown as Transaccion));
   console.log('🔄 Converted transactions:', converted);
   return converted;
 });

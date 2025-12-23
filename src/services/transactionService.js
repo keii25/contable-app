@@ -98,13 +98,14 @@ export const transactionService = {
     }
 
     try {
+      // Accept app's `Transaccion` shape (valor, cuentaContable) and map to DB fields
       const transactionData = {
         user_id: userId,
         type: transaction.tipoMovimiento === 'CREDITO' ? 'ingreso' : 'egreso',
-        amount: transaction.monto,
-        description: transaction.descripcion,
-        date: transaction.fecha,
-        category: transaction.cuenta
+        amount: transaction.valor ?? transaction.monto ?? transaction.amount,
+        description: transaction.descripcion ?? transaction.description,
+        date: transaction.fecha ?? transaction.date,
+        category: transaction.cuentaContable ?? transaction.cuenta ?? transaction.category
       };
       console.log('📤 Sending to Supabase:', transactionData);
 
@@ -134,9 +135,14 @@ export const transactionService = {
 
     try {
       const updateData = {};
+      // Support both app and DB field names when updating
+      if (updates.valor !== undefined) updateData.amount = updates.valor;
       if (updates.monto !== undefined) updateData.amount = updates.monto;
       if (updates.descripcion !== undefined) updateData.description = updates.descripcion;
+      if (updates.description !== undefined) updateData.description = updates.description;
       if (updates.fecha !== undefined) updateData.date = updates.fecha;
+      if (updates.date !== undefined) updateData.date = updates.date;
+      if (updates.cuentaContable !== undefined) updateData.category = updates.cuentaContable;
       if (updates.cuenta !== undefined) updateData.category = updates.cuenta;
       if (updates.tipoMovimiento !== undefined) {
         updateData.type = updates.tipoMovimiento === 'CREDITO' ? 'ingreso' : 'egreso';
