@@ -101,8 +101,10 @@ export const transactionService = {
       // Normalizar y mapear el tipo de movimiento para tolerar variantes (CREDITO/credito/INGRESO/etc.)
       const normalizeTipo = (v) => {
         if (!v) return 'egreso';
-        const s = String(v).toLowerCase();
-        return (s === 'credito' || s === 'cred' || s === 'ingreso' || s === 'income' || s === 'i') ? 'ingreso' : 'egreso';
+        const s = String(v).toLowerCase().trim();
+        // Aceptar muchas variantes que puedan venir de build/web antiguo o etiquetas UI
+        if (s.includes('cred') || s.includes('ingres') || s === 'income' || s === 'i') return 'ingreso';
+        return 'egreso';
       };
 
       // Accept app's `Transaccion` shape (valor, cuentaContable) and map to DB fields
@@ -117,6 +119,12 @@ export const transactionService = {
         cedula: transaction.cedula ?? undefined,
         nombres_apellidos: transaction.nombresApellidos ?? transaction.nombres_apellidos ?? undefined
       };
+      // Debug logs: registrar el tipo recibido y el resultado normalizado (ayuda a diagnosticar builds en producción)
+      try {
+        console.log('🔍 transactionService - addTransaction - raw tipoMovimiento:', transaction.tipoMovimiento, '-> normalized:', transactionData.type);
+      } catch (e) {
+        // noop
+      }
       console.log('📤 Sending to Supabase:', transactionData);
 
       const { data, error } = await supabase
@@ -181,10 +189,14 @@ export const transactionService = {
       if (updates.tipoMovimiento !== undefined) {
         const normalizeTipo = (v) => {
           if (!v) return 'egreso';
-          const s = String(v).toLowerCase();
-          return (s === 'credito' || s === 'cred' || s === 'ingreso' || s === 'income' || s === 'i') ? 'ingreso' : 'egreso';
+          const s = String(v).toLowerCase().trim();
+          if (s.includes('cred') || s.includes('ingres') || s === 'income' || s === 'i') return 'ingreso';
+          return 'egreso';
         };
         updateData.type = normalizeTipo(updates.tipoMovimiento);
+        try {
+          console.log('🔍 transactionService - updateTransaction - raw tipoMovimiento:', updates.tipoMovimiento, '-> normalized:', updateData.type);
+        } catch (e) {}
       }
 
       const { data, error } = await supabase
