@@ -19,7 +19,7 @@ export const cargarTransacciones = createAsyncThunk('transactions/load', async (
   // Convertir formato de Supabase al formato local
   const converted = (transactions || []).map((t: any) => ({
     id: String(t.id),
-    tipoMovimiento: (t.type === 'ingreso' || t.type === 'ingreso') ? 'CREDITO' : 'DEBITO',
+    tipoMovimiento: (String(t.type || '').toLowerCase() === 'ingreso') ? 'CREDITO' : 'DEBITO',
     valor: Number(t.amount ?? t.monto ?? t.valor) || 0,
     descripcion: t.description ?? t.descripcion ?? '',
     fecha: t.date ?? t.fecha ?? (t.created_at ? String(t.created_at).slice(0,10) : ''),

@@ -98,10 +98,17 @@ export const transactionService = {
     }
 
     try {
+      // Normalizar y mapear el tipo de movimiento para tolerar variantes (CREDITO/credito/INGRESO/etc.)
+      const normalizeTipo = (v) => {
+        if (!v) return 'egreso';
+        const s = String(v).toLowerCase();
+        return (s === 'credito' || s === 'cred' || s === 'ingreso' || s === 'income' || s === 'i') ? 'ingreso' : 'egreso';
+      };
+
       // Accept app's `Transaccion` shape (valor, cuentaContable) and map to DB fields
       const transactionData = {
         user_id: userId,
-        type: transaction.tipoMovimiento === 'CREDITO' ? 'ingreso' : 'egreso',
+        type: normalizeTipo(transaction.tipoMovimiento),
         amount: transaction.valor ?? transaction.monto ?? transaction.amount,
         description: transaction.descripcion ?? transaction.description,
         date: transaction.fecha ?? transaction.date,
@@ -172,7 +179,12 @@ export const transactionService = {
       if (updates.cedula !== undefined) updateData.cedula = updates.cedula;
       if (updates.nombresApellidos !== undefined) updateData.nombres_apellidos = updates.nombresApellidos;
       if (updates.tipoMovimiento !== undefined) {
-        updateData.type = updates.tipoMovimiento === 'CREDITO' ? 'ingreso' : 'egreso';
+        const normalizeTipo = (v) => {
+          if (!v) return 'egreso';
+          const s = String(v).toLowerCase();
+          return (s === 'credito' || s === 'cred' || s === 'ingreso' || s === 'income' || s === 'i') ? 'ingreso' : 'egreso';
+        };
+        updateData.type = normalizeTipo(updates.tipoMovimiento);
       }
 
       const { data, error } = await supabase
