@@ -1,8 +1,8 @@
 
 import { useDispatch, useSelector } from 'react-redux';
 import { useMemo, useState, useEffect } from 'react';
-import { eliminarTransaccion, cargarTransacciones } from '../store/transactionsSlice';
-import { selectTransacciones, selectCuentas, selectTransactionsStatus } from '../store/selectors';
+import { eliminarTransaccion, cargarTransacciones, cargarCuentasPorUsuario } from '../store/transactionsSlice';
+import { selectTransacciones, selectCuentas, selectTransactionsStatus, selectAccountsByUser } from '../store/selectors';
 import TransactionForm from './TransactionForm';
 import ConfirmDialog from './ConfirmDialog';
 import SuccessDialog from './SuccessDialog';
@@ -28,6 +28,7 @@ export default function TransactionsTable(){
   const { user } = useAuth();
   const items    = useSelector(selectTransacciones);
   const cuentas  = useSelector(selectCuentas);
+  const cuentasDelUsuario = useSelector((s:any) => selectAccountsByUser(s, user?.id));
   const status   = useSelector(selectTransactionsStatus);
 
   console.log('📊 TransactionsTable render - user:', user, 'items:', items, 'status:', status);
@@ -38,6 +39,8 @@ export default function TransactionsTable(){
     if (user?.id) {
       console.log('📥 Dispatching cargarTransacciones with userId:', user.id);
       dispatch(cargarTransacciones(user.id));
+      // Cargar cuentas del usuario en el store
+      dispatch(cargarCuentasPorUsuario(user.id));
     } else {
       console.log('⚠️ No user or user.id available');
     }
@@ -173,8 +176,12 @@ export default function TransactionsTable(){
           value={filtros.cuentaContable || ''}
           onChange={e=> setFiltros({ ...filtros, cuentaContable: e.target.value || undefined })}
         >
-          <option value="">Cuenta</option>
-          {cuentas.map(c=> <option key={c} value={c}>{c}</option>)}
+            <option value="">Cuenta</option>
+            {cuentasDelUsuario && cuentasDelUsuario.length>0 ? (
+              cuentasDelUsuario.map((c:any)=> <option key={c.id} value={c.name}>{c.name}</option>)
+            ) : (
+              cuentas.map(c=> <option key={c} value={c}>{c}</option>)
+            )}
         </select>
         <select className="select"
           value={filtros.mesNombre || ''}
@@ -201,12 +208,14 @@ export default function TransactionsTable(){
       <IngresosTable data={ingresos} />
       <EgresosTable data={egresos} />
 
-      <TransactionForm
-        open={modalOpen}
-        onClose={()=> setModalOpen(false)}
-        editing={editing}
-        onSaved={()=> setSuccessOpen(true)}
-      />
+      {modalOpen && (
+        <TransactionForm
+          open={modalOpen}
+          onClose={()=> setModalOpen(false)}
+          editing={editing}
+          onSaved={()=> setSuccessOpen(true)}
+        />
+      )}
 
       {/* Confirmación de eliminar (defaults: Eliminar, rojo) */}
       <ConfirmDialog

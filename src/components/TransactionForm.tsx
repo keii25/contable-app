@@ -3,6 +3,7 @@ import { useDispatch, useSelector } from 'react-redux';
 import { agregarTransaccion, actualizarTransaccion } from '../store/transactionsSlice';
 import type { Transaccion } from '../types';
 import { useEffect, useMemo, useState, useRef } from 'react';
+import { accountService } from '../services/accountService';
 import { useAuth } from '../context/AuthContext';
 
 const opcionesIngresosUI = [
@@ -33,11 +34,14 @@ export default function TransactionForm({ open, onClose, editing = null, onSaved
   const dispatch = useDispatch();  const { user } = useAuth();  const nombresPorCedula = useSelector((state: any) => state.transactions.nombresPorCedula);
 
   // "hoy" calculado en formato YYYY-MM-DD para atributos HTML y validación
-  const hoy = useMemo(()=> new Date().toISOString().slice(0,10), []);
+  const defaultHoy = new Date().toISOString().slice(0,10);
+  const hoy = useMemo(()=> defaultHoy, []);
 
-  const [form, setForm] = useState<FormData>({
-    fecha: '', tipoMovimiento:'CREDITO', cedula:'', nombresApellidos:'', cuentaContable:'', valor:0, descripcion:''
-  });
+  // Inicializar con valores por defecto para evitar inputs controlados undefined
+  const [form, setForm] = useState<FormData>(()=>({
+    fecha: defaultHoy, tipoMovimiento:'CREDITO', cedula:'', nombresApellidos:'', cuentaContable:'', valor:0, descripcion:''
+  }));
+  const [remoteAccounts, setRemoteAccounts] = useState<any[]>([]);
   const [valorStr, setValorStr] = useState('');
 
   const cedulaRef = useRef<HTMLInputElement>(null);
@@ -48,11 +52,15 @@ export default function TransactionForm({ open, onClose, editing = null, onSaved
       if(editing){
         const f = editing as Transaccion;
         setForm({
-          fecha: f.fecha, tipoMovimiento: f.tipoMovimiento, cedula: f.cedula,
-          nombresApellidos: f.nombresApellidos, cuentaContable: f.cuentaContable,
-          valor: f.valor, descripcion: f.descripcion || ''
+          fecha: f.fecha || hoy,
+          tipoMovimiento: (f.tipoMovimiento as any) || 'CREDITO',
+          cedula: f.cedula || '',
+          nombresApellidos: f.nombresApellidos || '',
+          cuentaContable: f.cuentaContable || '',
+          valor: typeof f.valor === 'number' ? f.valor : 0,
+          descripcion: f.descripcion || ''
         });
-        setValorStr((f.valor||0).toLocaleString('es-CO'));
+        try { setValorStr((f.valor||0).toLocaleString('es-CO')); } catch(e){ setValorStr(''); }
       } else {
         // Modo Añadir → formulario completamente limpio
         setForm({ fecha: hoy, tipoMovimiento:'CREDITO', cedula:'', nombresApellidos:'', cuentaContable:'', valor:0, descripcion:'' });
@@ -73,6 +81,29 @@ export default function TransactionForm({ open, onClose, editing = null, onSaved
       }, 100);
     }
   }, [open, editing, form.tipoMovimiento]);
+
+  // Depuración: registro de estado relevante para detectar por qué el formulario queda en blanco
+  useEffect(() => {
+    console.log('TransactionForm debug:', { open, editingId: editing?.id, userId: user?.id, form, remoteAccountsCount: remoteAccounts.length });
+  }, [open, editing, user?.id, form, remoteAccounts.length]);
+
+  // Cargar cuentas del perfil (usuario) cuando se abra el modal o cambie el usuario
+  useEffect(() => {
+    let mounted = true;
+    const load = async () => {
+      if (!open || !user?.id) return setRemoteAccounts([]);
+      try {
+        const list = await accountService.getAccountsForUser(user.id);
+        if (!mounted) return;
+        setRemoteAccounts(list || []);
+      } catch (err) {
+        console.warn('No se pudieron cargar cuentas del perfil:', err);
+        setRemoteAccounts([]);
+      }
+    };
+    load();
+    return () => { mounted = false; };
+  }, [open, user?.id]);
 
   const onSubmit = async (e:React.FormEvent)=>{
     e.preventDefault();
@@ -168,10 +199,30 @@ export default function TransactionForm({ open, onClose, editing = null, onSaved
     setValorStr('');
   };
 
-  const opciones = isCredito ? opcionesIngresosUI : cuentasEgresos.map(c=>({ label: c || 'Seleccione', value: c }));
+  // Construir opciones desde cuentas remotas si existen, sino usar valores por defecto
+  const opciones = useMemo(() => {
+    if (remoteAccounts && remoteAccounts.length > 0) {
+      const tipo = isCredito ? 'ingreso' : 'egreso';
+      const filtered = remoteAccounts.filter(a => a.type === tipo);
+      // Si no hay cuentas remotas para este tipo, fallback a defaults
+      if (filtered.length === 0) {
+        return isCredito ? opcionesIngresosUI : cuentasEgresos.map(c=>({ label: c || 'Seleccione', value: c }));
+      }
+      return [{ label: 'Seleccione', value: '' }, ...filtered.map(a => ({ label: a.name, value: a.name }))];
+    }
+    return isCredito ? opcionesIngresosUI : cuentasEgresos.map(c=>({ label: c || 'Seleccione', value: c }));
+  }, [remoteAccounts, isCredito]);
 
   return (
     <div className="modal-backdrop"><div className="modal">
+      {/* DEBUG: mostrar resumen pequeño para facilitar diagnóstico en UI */}
+      <div style={{position:'absolute', right:12, top:12, background:'#fff8', padding:6, borderRadius:6, fontSize:11}}>
+        <div><strong>DBG</strong></div>
+        <div>open: {open ? 'yes' : 'no'}</div>
+        <div>edit: {editing?.id ?? '-'}</div>
+        <div>user: {user?.id ?? '-'}</div>
+        <div>cuentas: {remoteAccounts.length}</div>
+      </div>
       <h2 className="hdr">{editing? 'Editar Transacción' : 'Nueva Transacción'}</h2>
       <p className="sub">La fecha no puede ser futura. El formulario se limpia al Añadir y al cambiar entre Ingresos/Egresos (excepto fecha).</p>
       <form onSubmit={onSubmit} className="grid grid-2">

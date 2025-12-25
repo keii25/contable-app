@@ -2,12 +2,15 @@
 import { createAsyncThunk, createSlice, PayloadAction } from '@reduxjs/toolkit';
 import type { Transaccion } from '../types';
 import { transactionService } from '../services/transactionService';
+import { accountService } from '../services/accountService';
 
 const initialState: { items: Transaccion[]; cuentas: string[]; centros: string[]; nombresPorCedula: Record<string, string>; key: string; status: 'idle'|'loading'|'succeeded'|'failed' } = {
   items: [],
   cuentas: [ 'Diezmos','Ofrendas','Ofrendas Ministeriales','Otros', '5105 - Gastos de Aseo','5110 - Ayuda Social','5120 - Construcción y Mantenimiento','5145 - Diezmo de Diezmos','5130 - Aportes Fondo Nacional','5140 - Subsidio de Transporte','5150 - Impuesto Predial','5160 - Intereses de Cesantías','5170 - Mantenimiento','5180 - Misiones y Evangelismo','5185 - Ofrenda Ministerios','5190 - Otros Gastos','5200 - Emolumento Pastora','5210 - Servicios Públicos','5220 - Sonido y Multimedia','5230 - Emolumento Pastor','5240 - Tecnología','5250 - Útiles y Papelería','5260 - Vacaciones' ],
   centros: ['Sede Corozal','Administración','Proyectos'],
   nombresPorCedula: {},
+  // accountsByUser: mapa userId -> lista de cuentas (cada cuenta tiene id,name,type,...)
+  accountsByUser: {} as Record<string, any[]>,
   key: 'iecp_transacciones_v1',
   status: 'idle'
 };
@@ -50,6 +53,12 @@ export const eliminarTransaccion = createAsyncThunk('transactions/delete', async
   return id;
 });
 
+export const cargarCuentasPorUsuario = createAsyncThunk('transactions/loadAccounts', async (userId: string) => {
+  if (!userId) return { userId, accounts: [] };
+  const accounts = await accountService.getAccountsForUser(userId).catch(err => { console.error('Error loading accounts for user', userId, err); return []; });
+  return { userId, accounts };
+});
+
 const slice = createSlice({
   name:'transactions',
   initialState,
@@ -72,6 +81,11 @@ const slice = createSlice({
         });
         state.status = 'succeeded';
         console.log('✅ State updated - items:', state.items.length, 'status:', state.status);
+      })
+      .addCase(cargarCuentasPorUsuario.fulfilled, (state, action) => {
+        const { userId, accounts } = action.payload as any;
+        if (!state.accountsByUser) state.accountsByUser = {};
+        state.accountsByUser[userId] = accounts || [];
       })
       .addCase(cargarTransacciones.rejected, (state) => {
         console.error('❌ cargarTransacciones.rejected');
