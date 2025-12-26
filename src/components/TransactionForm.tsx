@@ -215,14 +215,6 @@ export default function TransactionForm({ open, onClose, editing = null, onSaved
 
   return (
     <div className="modal-backdrop"><div className="modal">
-      {/* DEBUG: mostrar resumen pequeño para facilitar diagnóstico en UI */}
-      <div style={{position:'absolute', right:12, top:12, background:'#fff8', padding:6, borderRadius:6, fontSize:11}}>
-        <div><strong>DBG</strong></div>
-        <div>open: {open ? 'yes' : 'no'}</div>
-        <div>edit: {editing?.id ?? '-'}</div>
-        <div>user: {user?.id ?? '-'}</div>
-        <div>cuentas: {remoteAccounts.length}</div>
-      </div>
       <h2 className="hdr">{editing? 'Editar Transacción' : 'Nueva Transacción'}</h2>
       <p className="sub">La fecha no puede ser futura. El formulario se limpia al Añadir y al cambiar entre Ingresos/Egresos (excepto fecha).</p>
       <form onSubmit={onSubmit} className="grid grid-2">
